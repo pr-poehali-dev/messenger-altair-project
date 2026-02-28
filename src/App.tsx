@@ -451,78 +451,456 @@ function ChatWindow({ chatId }: { chatId: number }) {
   );
 }
 
-// ─── Channels View ────────────────────────────────────────────
-function ChannelsView() {
-  const [active, setActive] = useState<number | null>(null);
+// ─── Create Modal ─────────────────────────────────────────────
+type CreateType = "channel" | "group" | "bot";
+
+interface CreateModalProps {
+  type: CreateType;
+  onClose: () => void;
+  onCreate: (item: { name: string; emoji: string; description: string }) => void;
+}
+
+const CREATE_META: Record<CreateType, { title: string; icon: string; placeholder: string; descPlaceholder: string; grad: string }> = {
+  channel: {
+    title: "Новый канал",
+    icon: "📡",
+    placeholder: "Название канала",
+    descPlaceholder: "О чём этот канал?",
+    grad: "linear-gradient(135deg,#7c4dff,#00e5ff)",
+  },
+  group: {
+    title: "Новая группа",
+    icon: "👥",
+    placeholder: "Название группы",
+    descPlaceholder: "Описание группы",
+    grad: "linear-gradient(135deg,#ff4db8,#7c4dff)",
+  },
+  bot: {
+    title: "Создать бота",
+    icon: "🤖",
+    placeholder: "Имя бота (латиницей)",
+    descPlaceholder: "Что умеет этот бот?",
+    grad: "linear-gradient(135deg,#00e676,#00e5ff)",
+  },
+};
+
+const EMOJI_PRESETS = ["📡", "⭐", "⚡", "🎵", "🎬", "📈", "🔥", "💎", "🚀", "🌍", "👥", "🤖", "🎮", "💬", "🛒"];
+
+function CreateModal({ type, onClose, onCreate }: CreateModalProps) {
+  const meta = CREATE_META[type];
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [emoji, setEmoji] = useState(meta.icon);
+  const [step, setStep] = useState<"form" | "done">("form");
+
+  const handleCreate = () => {
+    if (!name.trim()) return;
+    setStep("done");
+    setTimeout(() => {
+      onCreate({ name: name.trim(), emoji, description: desc.trim() });
+      onClose();
+    }, 1200);
+  };
 
   return (
-    <div className="flex-1 flex h-full">
-      <div className="flex flex-col h-full border-r border-white/5" style={{ width: 300 }}>
-        <div className="p-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-white">Каналы</h2>
-            <button className="w-8 h-8 glass rounded-xl flex items-center justify-center">
-              <Icon name="Plus" size={16} className="text-violet-400" />
-            </button>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-strong rounded-3xl w-full max-w-md mx-4 overflow-hidden animate-scale-in"
+        style={{ border: "1px solid rgba(124,77,255,0.3)", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header gradient */}
+        <div className="h-2" style={{ background: meta.grad }} />
+
+        {step === "done" ? (
+          <div className="p-8 text-center space-y-4 animate-fade-in">
+            <div className="text-5xl">{emoji}</div>
+            <div className="text-white font-bold text-lg">{name}</div>
+            <div className="flex items-center justify-center gap-2 text-green-400 text-sm font-medium">
+              <Icon name="CheckCircle" size={18} />
+              {type === "channel" ? "Канал создан!" : type === "group" ? "Группа создана!" : "Бот создан!"}
+            </div>
           </div>
-          <div className="relative">
-            <Icon name="Search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-            <input placeholder="Поиск каналов..." className="w-full glass rounded-xl pl-9 pr-4 py-2.5 text-sm text-white/80 placeholder:text-white/25 outline-none" />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
-          {CHANNELS.map((ch) => (
-            <div key={ch.id} onClick={() => setActive(ch.id)} className={`chat-item ${active === ch.id ? "active" : ""}`}>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0" style={{ background: ch.grad }}>
-                  {ch.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white/90 truncate">{ch.name}</div>
-                  <div className="text-xs text-white/35 truncate">{ch.lastPost}</div>
-                </div>
-                <div className="text-xs text-white/25 shrink-0">{ch.subs}</div>
+        ) : (
+          <div className="p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-white font-bold text-lg">{meta.title}</h2>
+              <button onClick={onClose} className="w-8 h-8 glass rounded-xl flex items-center justify-center">
+                <Icon name="X" size={16} className="text-white/50" />
+              </button>
+            </div>
+
+            {/* Emoji picker */}
+            <div>
+              <div className="text-xs text-white/40 mb-2 font-medium">Иконка</div>
+              <div className="flex flex-wrap gap-2">
+                {EMOJI_PRESETS.map((e) => (
+                  <button
+                    key={e}
+                    onClick={() => setEmoji(e)}
+                    className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all hover:scale-110 ${
+                      emoji === e ? "neon-border scale-110" : "glass"
+                    }`}
+                    style={emoji === e ? { background: "rgba(124,77,255,0.2)" } : {}}
+                  >
+                    {e}
+                  </button>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {active ? (
-        <div className="flex-1 flex flex-col bg-mesh">
-          {(() => {
-            const ch = CHANNELS.find((c) => c.id === active)!;
-            return (
-              <>
-                <div className="glass-strong border-b border-white/5 px-5 py-3 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl" style={{ background: ch.grad }}>{ch.emoji}</div>
-                  <div>
-                    <div className="font-semibold text-white text-sm">{ch.name}</div>
-                    <div className="text-xs text-white/40">{ch.subs} подписчиков</div>
-                  </div>
-                  <button className="ml-auto btn-grad px-4 py-1.5 rounded-xl text-sm font-medium text-white">Подписаться</button>
+            {/* Preview */}
+            <div
+              className="flex items-center gap-3 p-3 rounded-2xl"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0" style={{ background: meta.grad }}>
+                {emoji}
+              </div>
+              <div>
+                <div className="text-white font-semibold text-sm">{name || (type === "bot" ? "@username_bot" : meta.placeholder)}</div>
+                <div className="text-white/30 text-xs mt-0.5">
+                  {type === "channel" ? "0 подписчиков" : type === "group" ? "0 участников" : "Бот · не активен"}
                 </div>
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center space-y-3">
-                    <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-3xl mx-auto" style={{ background: ch.grad }}>{ch.emoji}</div>
-                    <div className="text-white/70 font-semibold">{ch.name}</div>
-                    <div className="text-white/30 text-sm">Подпишитесь, чтобы читать посты</div>
-                  </div>
-                </div>
-              </>
-            );
-          })()}
+              </div>
+            </div>
+
+            {/* Name */}
+            <div>
+              <div className="text-xs text-white/40 mb-1.5 font-medium">
+                {type === "bot" ? "Имя бота" : "Название"}
+              </div>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={meta.placeholder}
+                autoFocus
+                className="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 outline-none focus:border-violet-500/50 transition-all"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <div className="text-xs text-white/40 mb-1.5 font-medium">Описание</div>
+              <textarea
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder={meta.descPlaceholder}
+                rows={2}
+                className="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 outline-none resize-none leading-relaxed"
+              />
+            </div>
+
+            {/* Bot extra: token */}
+            {type === "bot" && (
+              <div
+                className="rounded-xl p-3 flex items-start gap-2 text-xs"
+                style={{ background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.2)" }}
+              >
+                <Icon name="Info" size={13} className="text-green-400 shrink-0 mt-0.5" />
+                <span className="text-green-400/80">После создания вы получите API-токен для подключения вашего бота</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleCreate}
+              disabled={!name.trim()}
+              className="w-full btn-grad py-3 rounded-2xl text-white font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {type === "channel" ? "Создать канал" : type === "group" ? "Создать группу" : "Создать бота"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Channels View ────────────────────────────────────────────
+type ChannelTab = "channels" | "groups" | "bots";
+
+interface GroupItem { id: number; name: string; emoji: string; members: string; lastMsg: string; grad: string; }
+interface BotItem   { id: number; name: string; emoji: string; description: string; active: boolean; grad: string; }
+
+const GROUPS: GroupItem[] = [
+  { id: 1, name: "Команда дизайн", emoji: "🎨", members: "12", lastMsg: "Новый макет готов", grad: "linear-gradient(135deg,#ff4db8,#7c4dff)" },
+  { id: 2, name: "Разработка ALTAIR", emoji: "🚀", members: "8", lastMsg: "Релиз в пятницу!", grad: "linear-gradient(135deg,#7c4dff,#00e5ff)" },
+  { id: 3, name: "Друзья", emoji: "🔥", members: "5", lastMsg: "Встречаемся в субботу?", grad: "linear-gradient(135deg,#ff9800,#ff4db8)" },
+];
+
+const BOTS: BotItem[] = [
+  { id: 1, name: "TranslateBot", emoji: "🌍", description: "Мгновенный перевод сообщений", active: true, grad: "linear-gradient(135deg,#00e676,#00e5ff)" },
+  { id: 2, name: "ReminderBot", emoji: "⏰", description: "Напоминания и расписание", active: true, grad: "linear-gradient(135deg,#7c4dff,#ff4db8)" },
+  { id: 3, name: "NewsBot", emoji: "📰", description: "Свежие новости по вашим темам", active: false, grad: "linear-gradient(135deg,#ff9800,#7c4dff)" },
+];
+
+function ChannelsView() {
+  const [tab, setTab] = useState<ChannelTab>("channels");
+  const [active, setActive] = useState<number | null>(null);
+  const [modal, setModal] = useState<CreateType | null>(null);
+  const [channels, setChannels] = useState(CHANNELS);
+  const [groups, setGroups] = useState(GROUPS);
+  const [bots, setBots] = useState(BOTS);
+
+  const tabs: { id: ChannelTab; label: string; icon: string }[] = [
+    { id: "channels", label: "Каналы", icon: "Radio" },
+    { id: "groups",   label: "Группы",  icon: "Users" },
+    { id: "bots",     label: "Боты",    icon: "Bot" },
+  ];
+
+  const handleCreate = (item: { name: string; emoji: string; description: string }) => {
+    const grad = modal === "channel"
+      ? "linear-gradient(135deg,#7c4dff,#00e5ff)"
+      : modal === "group"
+      ? "linear-gradient(135deg,#ff4db8,#7c4dff)"
+      : "linear-gradient(135deg,#00e676,#00e5ff)";
+
+    if (modal === "channel") {
+      setChannels((prev) => [{ id: Date.now(), name: item.name, emoji: item.emoji, subs: "0", lastPost: item.description || "Только создан", grad }, ...prev]);
+      setTab("channels");
+    } else if (modal === "group") {
+      setGroups((prev) => [{ id: Date.now(), name: item.name, emoji: item.emoji, members: "1", lastMsg: item.description || "Группа создана", grad }, ...prev]);
+      setTab("groups");
+    } else if (modal === "bot") {
+      setBots((prev) => [{ id: Date.now(), name: item.name, emoji: item.emoji, description: item.description || "Новый бот", active: false, grad }, ...prev]);
+      setTab("bots");
+    }
+  };
+
+  const createType: CreateType = tab === "groups" ? "group" : tab === "bots" ? "bot" : "channel";
+
+  // Правая часть — пусто
+  const renderEmpty = () => (
+    <div className="flex-1 flex items-center justify-center bg-mesh">
+      <div className="text-center space-y-3">
+        <div className="text-5xl">{tab === "channels" ? "📡" : tab === "groups" ? "👥" : "🤖"}</div>
+        <div className="text-white/50 font-semibold">
+          {tab === "channels" ? "Выберите канал" : tab === "groups" ? "Выберите группу" : "Выберите бота"}
         </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center bg-mesh">
-          <div className="text-center space-y-3">
-            <div className="text-5xl">📡</div>
-            <div className="text-white/50 font-semibold">Выберите канал</div>
-            <div className="text-white/25 text-sm">Следите за новостями и обновлениями</div>
+        <button
+          onClick={() => setModal(createType)}
+          className="btn-grad px-5 py-2 rounded-xl text-sm font-medium text-white flex items-center gap-2 mx-auto"
+        >
+          <Icon name="Plus" size={14} />
+          {tab === "channels" ? "Создать канал" : tab === "groups" ? "Создать группу" : "Создать бота"}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Правая часть — детали
+  const renderDetail = () => {
+    if (tab === "channels") {
+      const ch = channels.find((c) => c.id === active);
+      if (!ch) return renderEmpty();
+      return (
+        <div className="flex-1 flex flex-col bg-mesh">
+          <div className="glass-strong border-b border-white/5 px-5 py-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl" style={{ background: ch.grad }}>{ch.emoji}</div>
+            <div>
+              <div className="font-semibold text-white text-sm">{ch.name}</div>
+              <div className="text-xs text-white/40">{ch.subs} подписчиков</div>
+            </div>
+            <button className="ml-auto btn-grad px-4 py-1.5 rounded-xl text-sm font-medium text-white">Подписаться</button>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-3xl mx-auto" style={{ background: ch.grad }}>{ch.emoji}</div>
+              <div className="text-white/70 font-semibold">{ch.name}</div>
+              <div className="text-white/30 text-sm">Подпишитесь, чтобы читать посты</div>
+            </div>
           </div>
         </div>
-      )}
-    </div>
+      );
+    }
+
+    if (tab === "groups") {
+      const gr = groups.find((g) => g.id === active);
+      if (!gr) return renderEmpty();
+      return (
+        <div className="flex-1 flex flex-col bg-mesh">
+          <div className="glass-strong border-b border-white/5 px-5 py-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl" style={{ background: gr.grad }}>{gr.emoji}</div>
+            <div>
+              <div className="font-semibold text-white text-sm">{gr.name}</div>
+              <div className="text-xs text-white/40">{gr.members} участников</div>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <button className="w-9 h-9 glass rounded-xl flex items-center justify-center">
+                <Icon name="Video" size={16} className="text-cyan-400" />
+              </button>
+              <button className="w-9 h-9 glass rounded-xl flex items-center justify-center">
+                <Icon name="UserPlus" size={16} className="text-violet-400" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-3xl mx-auto" style={{ background: gr.grad }}>{gr.emoji}</div>
+              <div className="text-white/70 font-semibold">{gr.name}</div>
+              <div className="text-white/30 text-sm">{gr.members} участников · Нажмите, чтобы открыть чат</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (tab === "bots") {
+      const bot = bots.find((b) => b.id === active);
+      if (!bot) return renderEmpty();
+      return (
+        <div className="flex-1 flex flex-col bg-mesh">
+          <div className="glass-strong border-b border-white/5 px-5 py-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl" style={{ background: bot.grad }}>{bot.emoji}</div>
+            <div>
+              <div className="font-semibold text-white text-sm">{bot.name}</div>
+              <div className="text-xs" style={{ color: bot.active ? "#00e676" : "rgba(255,255,255,0.35)" }}>
+                {bot.active ? "● активен" : "○ не активен"}
+              </div>
+            </div>
+            <button className="ml-auto btn-grad px-4 py-1.5 rounded-xl text-sm font-medium text-white flex items-center gap-1.5">
+              <Icon name="MessageCircle" size={14} />
+              Написать боту
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+            <div className="glass rounded-2xl p-4 space-y-2">
+              <div className="text-xs text-white/40 font-medium">Описание</div>
+              <div className="text-white/75 text-sm">{bot.description}</div>
+            </div>
+            <div className="glass rounded-2xl p-4 space-y-3">
+              <div className="text-xs text-white/40 font-medium">API Токен</div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs text-violet-300 bg-violet-500/10 rounded-lg px-3 py-2 font-mono truncate">
+                  {bot.active ? "7x3k9••••••••••••••••••••••" : "Токен не выдан"}
+                </code>
+                {bot.active && (
+                  <button className="w-8 h-8 glass rounded-lg flex items-center justify-center">
+                    <Icon name="Copy" size={14} className="text-white/40" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="glass rounded-2xl p-4 space-y-2">
+              <div className="text-xs text-white/40 font-medium">Команды</div>
+              {["/start", "/help", "/settings", "/stop"].map((cmd) => (
+                <div key={cmd} className="flex items-center gap-2 py-1">
+                  <code className="text-violet-400 text-sm font-mono">{cmd}</code>
+                  <span className="text-white/30 text-xs">—</span>
+                  <span className="text-white/50 text-xs">
+                    {cmd === "/start" ? "Запустить бота" : cmd === "/help" ? "Справка" : cmd === "/settings" ? "Настройки" : "Остановить"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return renderEmpty();
+  };
+
+  return (
+    <>
+      {modal && <CreateModal type={modal} onClose={() => setModal(null)} onCreate={handleCreate} />}
+
+      <div className="flex-1 flex h-full">
+        <div className="flex flex-col h-full border-r border-white/5" style={{ width: 300 }}>
+          {/* Tabs */}
+          <div className="px-3 pt-3 pb-1">
+            <div className="flex gap-1 glass rounded-2xl p-1">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { setTab(t.id); setActive(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    tab === t.id
+                      ? "text-white"
+                      : "text-white/35 hover:text-white/60"
+                  }`}
+                  style={tab === t.id ? { background: "linear-gradient(135deg,rgba(124,77,255,0.5),rgba(0,229,255,0.2))", boxShadow: "0 2px 12px rgba(124,77,255,0.3)" } : {}}
+                >
+                  <Icon name={t.icon} size={13} />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Search + create */}
+          <div className="px-3 py-2 flex gap-2">
+            <div className="relative flex-1">
+              <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <input
+                placeholder="Поиск..."
+                className="w-full glass rounded-xl pl-8 pr-3 py-2 text-xs text-white/80 placeholder:text-white/25 outline-none"
+              />
+            </div>
+            <button
+              onClick={() => setModal(createType)}
+              className="w-9 h-9 btn-grad rounded-xl flex items-center justify-center shrink-0"
+              title={`Создать ${tab === "channels" ? "канал" : tab === "groups" ? "группу" : "бота"}`}
+            >
+              <Icon name="Plus" size={16} className="text-white" />
+            </button>
+          </div>
+
+          {/* List */}
+          <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+            {tab === "channels" && channels.map((ch) => (
+              <div key={ch.id} onClick={() => setActive(ch.id)} className={`chat-item ${active === ch.id ? "active" : ""}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0" style={{ background: ch.grad }}>{ch.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white/90 truncate">{ch.name}</div>
+                    <div className="text-xs text-white/35 truncate">{ch.lastPost}</div>
+                  </div>
+                  <div className="text-xs text-white/25 shrink-0">{ch.subs}</div>
+                </div>
+              </div>
+            ))}
+
+            {tab === "groups" && groups.map((gr) => (
+              <div key={gr.id} onClick={() => setActive(gr.id)} className={`chat-item ${active === gr.id ? "active" : ""}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0" style={{ background: gr.grad }}>{gr.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white/90 truncate">{gr.name}</div>
+                    <div className="text-xs text-white/35 truncate">{gr.lastMsg}</div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-white/25 shrink-0">
+                    <Icon name="Users" size={11} />
+                    {gr.members}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {tab === "bots" && bots.map((bot) => (
+              <div key={bot.id} onClick={() => setActive(bot.id)} className={`chat-item ${active === bot.id ? "active" : ""}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0" style={{ background: bot.grad }}>{bot.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white/90 truncate">{bot.name}</div>
+                    <div className="text-xs text-white/35 truncate">{bot.description}</div>
+                  </div>
+                  <div
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ background: bot.active ? "#00e676" : "rgba(255,255,255,0.2)", boxShadow: bot.active ? "0 0 6px #00e676" : "none" }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {renderDetail()}
+      </div>
+    </>
   );
 }
 
