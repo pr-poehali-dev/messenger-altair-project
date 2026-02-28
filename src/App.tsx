@@ -965,8 +965,8 @@ function DownloadView() {
       <div className="relative px-8 pt-16 pb-10 text-center overflow-hidden">
         <div className="absolute inset-0 opacity-15" style={{ background: "radial-gradient(circle at 50% 0%, #7c4dff 0%, transparent 70%)" }} />
         <div className="relative">
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-5 neon-glow" style={{ background: "linear-gradient(135deg,#7c4dff,#00e5ff)" }}>
-            <span className="font-bebas text-4xl text-white tracking-widest">A</span>
+          <div className="w-20 h-20 rounded-3xl overflow-hidden mx-auto mb-5 neon-glow">
+            <img src="https://cdn.poehali.dev/projects/3038e74c-d480-4cc3-be40-1ff50228f433/files/f5a67097-1f13-4b71-bce0-6e1469f91e48.jpg" alt="ALTAIR" className="w-full h-full object-cover" />
           </div>
           <h1 className="font-bebas text-5xl text-white tracking-widest mb-2">ALTAIR</h1>
           <p className="text-white/50 text-base mb-1">Мессенджер нового поколения</p>
@@ -1257,8 +1257,8 @@ function EmptyChat({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-mesh">
       <div className="text-center space-y-4 animate-fade-in">
-        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto neon-glow" style={{ background: "linear-gradient(135deg,#7c4dff,#00e5ff)" }}>
-          <span className="font-bebas text-4xl text-white tracking-widest">A</span>
+        <div className="w-20 h-20 rounded-3xl overflow-hidden mx-auto neon-glow">
+          <img src="https://cdn.poehali.dev/projects/3038e74c-d480-4cc3-be40-1ff50228f433/files/f5a67097-1f13-4b71-bce0-6e1469f91e48.jpg" alt="ALTAIR" className="w-full h-full object-cover" />
         </div>
         <div>
           <h2 className="font-bebas tracking-widest text-3xl text-white">ALTAIR</h2>
@@ -1291,8 +1291,8 @@ function Sidebar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void
   return (
     <div className="flex flex-col items-center glass h-full py-4 gap-1 border-r border-white/5" style={{ width: 72 }}>
       <div className="mb-4 flex flex-col items-center gap-1">
-        <div className="flex items-center justify-center rounded-2xl neon-glow" style={{ width: 44, height: 44, background: "linear-gradient(135deg,#7c4dff,#00e5ff)" }}>
-          <span className="text-white font-bebas text-xl tracking-widest">A</span>
+        <div className="flex items-center justify-center rounded-2xl overflow-hidden neon-glow" style={{ width: 44, height: 44 }}>
+          <img src="https://cdn.poehali.dev/projects/3038e74c-d480-4cc3-be40-1ff50228f433/files/f5a67097-1f13-4b71-bce0-6e1469f91e48.jpg" alt="ALTAIR" className="w-full h-full object-cover" />
         </div>
       </div>
       <div className="flex flex-col gap-1 flex-1 w-full px-2">
