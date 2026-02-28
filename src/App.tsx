@@ -48,6 +48,181 @@ interface Note {
   color: string;
 }
 
+// ─── SBP helpers ─────────────────────────────────────────────
+const MONEY_KEYWORDS = ["рубл", "деньг", "перевод", "скинь", "скин ", "оплат", "долг", "сумм", "₽", "руб", "тысяч", "бабки", "бабл", "переведи", "отправь деньг", "скидывай", "скидай"];
+const isMoney = (text: string) => MONEY_KEYWORDS.some((kw) => text.toLowerCase().includes(kw));
+
+// ─── SBP Transfer Modal ───────────────────────────────────────
+interface SbpModalProps { recipient: string; onClose: () => void; }
+
+function SbpModal({ recipient, onClose }: SbpModalProps) {
+  const [amount, setAmount] = useState("");
+  const [comment, setComment] = useState("");
+  const [step, setStep] = useState<"form" | "confirm" | "done">("form");
+  const [phone, setPhone] = useState("+7 (999) 123-45-67");
+
+  const quickAmounts = [500, 1000, 2000, 5000];
+
+  const handleSend = () => {
+    if (!amount) return;
+    setStep("confirm");
+  };
+
+  const handleConfirm = () => {
+    setStep("done");
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-strong w-full max-w-sm mx-0 sm:mx-4 rounded-t-3xl sm:rounded-3xl overflow-hidden animate-scale-in"
+        style={{ border: "1px solid rgba(0,230,118,0.25)", boxShadow: "0 24px 80px rgba(0,0,0,0.7)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Green header stripe */}
+        <div className="h-1.5" style={{ background: "linear-gradient(90deg,#00e676,#00c853)" }} />
+
+        {step === "done" ? (
+          <div className="p-8 text-center space-y-4 animate-fade-in">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: "0 0 30px rgba(0,230,118,0.4)" }}>
+              <Icon name="Check" size={28} className="text-white" />
+            </div>
+            <div>
+              <div className="text-white font-bold text-xl">Перевод отправлен!</div>
+              <div className="text-white/50 text-sm mt-1">{Number(amount).toLocaleString("ru")} ₽ → {recipient}</div>
+            </div>
+            <div className="text-xs text-white/30">через Систему быстрых платежей</div>
+            <button onClick={onClose} className="w-full py-3 rounded-2xl text-white font-semibold text-sm" style={{ background: "linear-gradient(135deg,#00e676,#00c853)" }}>
+              Готово
+            </button>
+          </div>
+        ) : step === "confirm" ? (
+          <div className="p-6 space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setStep("form")} className="w-8 h-8 glass rounded-xl flex items-center justify-center">
+                <Icon name="ArrowLeft" size={16} className="text-white/60" />
+              </button>
+              <h2 className="text-white font-bold text-lg">Подтверждение</h2>
+            </div>
+            <div className="glass rounded-2xl p-4 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Получатель</span>
+                <span className="text-white font-medium">{recipient}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Телефон</span>
+                <span className="text-white font-medium">{phone}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Сумма</span>
+                <span className="font-bold text-base" style={{ color: "#00e676" }}>{Number(amount).toLocaleString("ru")} ₽</span>
+              </div>
+              {comment && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Комментарий</span>
+                  <span className="text-white/70">{comment}</span>
+                </div>
+              )}
+              <div className="border-t border-white/5 pt-2 flex items-center gap-1.5 text-xs text-green-400">
+                <Icon name="Shield" size={11} />
+                Защищено сквозным шифрованием
+              </div>
+            </div>
+            <button onClick={handleConfirm} className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-95" style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: "0 8px 24px rgba(0,230,118,0.3)" }}>
+              Подтвердить перевод
+            </button>
+          </div>
+        ) : (
+          <div className="p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,230,118,0.15)" }}>
+                  <span className="text-base">⚡</span>
+                </div>
+                <div>
+                  <div className="text-white font-bold text-base">Перевод по СБП</div>
+                  <div className="text-white/40 text-xs">Система быстрых платежей</div>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-8 h-8 glass rounded-xl flex items-center justify-center">
+                <Icon name="X" size={15} className="text-white/40" />
+              </button>
+            </div>
+
+            {/* Recipient */}
+            <div className="glass rounded-2xl p-3 flex items-center gap-3">
+              <Avatar label={recipient.split(" ").map((w) => w[0]).join("").slice(0, 2)} size={40} />
+              <div>
+                <div className="text-white font-semibold text-sm">{recipient}</div>
+                <div className="text-white/40 text-xs">{phone}</div>
+              </div>
+              <button className="ml-auto text-xs text-violet-400 hover:text-violet-300 transition-colors">Изменить</button>
+            </div>
+
+            {/* Amount */}
+            <div>
+              <div className="text-xs text-white/40 mb-2 font-medium">Сумма перевода</div>
+              <div className="relative">
+                <input
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                  placeholder="0"
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full glass rounded-2xl px-5 py-4 text-3xl font-bold text-white placeholder:text-white/20 outline-none text-center pr-10"
+                />
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/30">₽</span>
+              </div>
+              {/* Quick amounts */}
+              <div className="flex gap-2 mt-2">
+                {quickAmounts.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setAmount(String(q))}
+                    className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+                    style={{
+                      background: amount === String(q) ? "rgba(0,230,118,0.2)" : "rgba(255,255,255,0.05)",
+                      border: amount === String(q) ? "1px solid rgba(0,230,118,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                      color: amount === String(q) ? "#00e676" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {q.toLocaleString("ru")} ₽
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div>
+              <div className="text-xs text-white/40 mb-1.5 font-medium">Комментарий (необязательно)</div>
+              <input
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="За что перевод?"
+                className="w-full glass rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/25 outline-none"
+              />
+            </div>
+
+            <button
+              onClick={handleSend}
+              disabled={!amount || Number(amount) <= 0}
+              className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: amount ? "0 8px 24px rgba(0,230,118,0.3)" : "none" }}
+            >
+              <Icon name="Zap" size={16} />
+              Перевести по СБП
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Mock Data ───────────────────────────────────────────────
 const CHATS: Chat[] = [
   { id: 1, name: "Алекс Романов", avatar: "АР", lastMsg: "Отлично, увидимся завтра!", time: "14:32", unread: 2, online: true, typing: false },
@@ -248,6 +423,7 @@ function ChatWindow({ chatId }: { chatId: number }) {
   const [isRecording, setIsRecording] = useState(false);
   const [hoveredMsg, setHoveredMsg] = useState<number | null>(null);
   const [pickerFor, setPickerFor] = useState<number | null>(null);
+  const [sbpOpen, setSbpOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -292,6 +468,7 @@ function ChatWindow({ chatId }: { chatId: number }) {
 
   return (
     <div className="flex flex-col flex-1 h-full bg-mesh">
+      {sbpOpen && <SbpModal recipient={chat.name} onClose={() => setSbpOpen(false)} />}
       <div className="glass-strong border-b border-white/5 px-5 py-3 flex items-center gap-3">
         <div className="relative">
           <Avatar label={chat.avatar} size={40} />
@@ -374,6 +551,17 @@ function ChatWindow({ chatId }: { chatId: number }) {
               <div className={`px-4 py-2.5 text-sm leading-relaxed ${msg.out ? "msg-bubble-out text-white" : "msg-bubble-in text-white/85"}`}>
                 {msg.text}
               </div>
+              {/* СБП-кнопка если сообщение про деньги */}
+              {!msg.out && isMoney(msg.text) && (
+                <button
+                  onClick={() => setSbpOpen(true)}
+                  className="mt-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-105 active:scale-95 animate-fade-in"
+                  style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }}
+                >
+                  <Icon name="Zap" size={12} />
+                  Перевести по СБП
+                </button>
+              )}
               {translateAll && msg.translated && (
                 <div
                   className="mt-1 px-4 py-2 rounded-xl text-xs text-white/50 italic border border-dashed border-white/10 flex items-start gap-2"
@@ -1037,54 +1225,251 @@ function NotesView() {
   );
 }
 
-// ─── Profile View ─────────────────────────────────────────────
-function ProfileView() {
+// ─── Profile Transfer Tab ──────────────────────────────────────
+function ProfileTransfer() {
+  const [amount, setAmount] = useState("");
+  const [phone, setPhone] = useState("");
+  const [comment, setComment] = useState("");
+  const [step, setStep] = useState<"form" | "done">("form");
+  const quickAmounts = [500, 1000, 2000, 5000, 10000, 25000];
+  const contacts = [
+    { name: "Алекс Романов", phone: "+7 999 123-45-67", avatar: "АР" },
+    { name: "Мария Смирнова", phone: "+7 912 456-78-90", avatar: "МС" },
+    { name: "Иван Петров", phone: "+7 926 789-01-23", avatar: "ИП" },
+  ];
+
+  if (step === "done") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-5 bg-mesh animate-fade-in">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: "0 0 40px rgba(0,230,118,0.4)" }}>
+          <Icon name="Check" size={36} className="text-white" />
+        </div>
+        <div className="text-center">
+          <div className="text-white font-bold text-2xl">Готово!</div>
+          <div className="text-white/50 text-sm mt-1">{Number(amount).toLocaleString("ru")} ₽ отправлено по СБП</div>
+        </div>
+        <button onClick={() => { setStep("form"); setAmount(""); setPhone(""); setComment(""); }} className="px-6 py-3 rounded-2xl text-white font-semibold" style={{ background: "linear-gradient(135deg,#00e676,#00c853)" }}>
+          Новый перевод
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-mesh overflow-y-auto">
-      <div className="relative px-8 pt-10 pb-6 flex flex-col items-center">
+    <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 bg-mesh">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: "0 4px 16px rgba(0,230,118,0.3)" }}>
+          <Icon name="Zap" size={18} className="text-white" />
+        </div>
+        <div>
+          <div className="text-white font-bold text-lg">Перевод по СБП</div>
+          <div className="text-white/40 text-xs">Система быстрых платежей · мгновенно</div>
+        </div>
+      </div>
+
+      {/* Quick contacts */}
+      <div>
+        <div className="text-xs text-white/40 font-medium mb-2">Недавние переводы</div>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {contacts.map((c) => (
+            <button
+              key={c.name}
+              onClick={() => setPhone(c.phone)}
+              className={`flex flex-col items-center gap-1.5 min-w-[60px] transition-all hover:scale-105 ${phone === c.phone ? "opacity-100" : "opacity-60 hover:opacity-80"}`}
+            >
+              <div className="relative">
+                <Avatar label={c.avatar} size={44} />
+                {phone === c.phone && (
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "#00e676" }}>
+                    <Icon name="Check" size={9} className="text-white" />
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-white/60 text-center leading-tight whitespace-nowrap">{c.name.split(" ")[0]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Phone */}
+      <div>
+        <div className="text-xs text-white/40 mb-1.5 font-medium">Номер телефона или +79xx</div>
+        <div className="relative">
+          <Icon name="Phone" size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+7 (___) ___-__-__"
+            className="w-full glass rounded-2xl pl-10 pr-4 py-3.5 text-sm text-white placeholder:text-white/25 outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Amount */}
+      <div>
+        <div className="text-xs text-white/40 mb-1.5 font-medium">Сумма</div>
+        <div className="relative">
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+            placeholder="0"
+            type="text"
+            inputMode="numeric"
+            className="w-full glass rounded-2xl px-5 py-4 text-4xl font-bold text-white placeholder:text-white/15 outline-none text-center pr-12"
+          />
+          <span className="absolute right-5 top-1/2 -translate-y-1/2 text-3xl font-bold text-white/25">₽</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          {quickAmounts.map((q) => (
+            <button
+              key={q}
+              onClick={() => setAmount(String(q))}
+              className="py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+              style={{
+                background: amount === String(q) ? "rgba(0,230,118,0.2)" : "rgba(255,255,255,0.05)",
+                border: amount === String(q) ? "1px solid rgba(0,230,118,0.4)" : "1px solid rgba(255,255,255,0.07)",
+                color: amount === String(q) ? "#00e676" : "rgba(255,255,255,0.5)",
+              }}
+            >
+              {q.toLocaleString("ru")} ₽
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Comment */}
+      <div>
+        <div className="text-xs text-white/40 mb-1.5 font-medium">Комментарий</div>
+        <input
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="За что перевод?"
+          className="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 outline-none"
+        />
+      </div>
+
+      {/* Security note */}
+      <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ background: "rgba(0,230,118,0.07)", border: "1px solid rgba(0,230,118,0.15)" }}>
+        <Icon name="ShieldCheck" size={14} className="text-green-400 shrink-0 mt-0.5" />
+        <span className="text-xs text-green-400/70">Переводы защищены сквозным шифрованием ALTAIR. Максимум 100 000 ₽ за раз.</span>
+      </div>
+
+      {/* Send button */}
+      <button
+        onClick={() => { if (amount && phone) setStep("done"); }}
+        disabled={!amount || !phone || Number(amount) <= 0}
+        className="w-full py-4 rounded-2xl text-white font-bold text-base transition-all hover:opacity-90 active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        style={{ background: "linear-gradient(135deg,#00e676,#00c853)", boxShadow: amount && phone ? "0 8px 30px rgba(0,230,118,0.35)" : "none" }}
+      >
+        <Icon name="Zap" size={18} />
+        Перевести {amount ? `${Number(amount).toLocaleString("ru")} ₽` : "по СБП"}
+      </button>
+
+      {/* History */}
+      <div>
+        <div className="text-xs text-white/40 font-medium mb-2">История переводов</div>
+        <div className="space-y-1.5">
+          {[
+            { name: "Алекс Романов", sum: "-2 000 ₽", date: "сегодня, 14:30", out: true },
+            { name: "Мария Смирнова", sum: "+5 000 ₽", date: "вчера, 18:12", out: false },
+            { name: "Иван Петров", sum: "-1 500 ₽", date: "23 фев, 10:05", out: true },
+          ].map((h) => (
+            <div key={h.name + h.date} className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
+              <Avatar label={h.name.split(" ").map((w) => w[0]).join("").slice(0, 2)} size={36} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-white/80 font-medium">{h.name}</div>
+                <div className="text-xs text-white/30">{h.date} · СБП</div>
+              </div>
+              <div className={`font-bold text-sm ${h.out ? "text-red-400" : "text-green-400"}`}>{h.sum}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Profile View ─────────────────────────────────────────────
+type ProfileTab = "settings" | "transfer";
+
+function ProfileView() {
+  const [profileTab, setProfileTab] = useState<ProfileTab>("settings");
+
+  return (
+    <div className="flex-1 flex flex-col h-full bg-mesh overflow-hidden">
+      {/* Hero */}
+      <div className="relative px-8 pt-8 pb-5 flex flex-col items-center shrink-0">
         <div className="absolute inset-0 opacity-20" style={{ background: "linear-gradient(180deg,rgba(124,77,255,0.5) 0%, transparent 100%)" }} />
         <div className="relative">
-          <Avatar label="ВЮ" size={96} />
+          <Avatar label="ВЮ" size={80} />
           <div className="online-dot absolute -bottom-1 -right-1" style={{ width: 14, height: 14 }} />
         </div>
-        <h1 className="text-2xl font-bold text-white mt-4">Владимир Юрьев</h1>
-        <p className="text-white/40 text-sm mt-1">@vladimir_altair</p>
-        <div className="lock-badge mt-3 flex items-center gap-1.5">
-          <Icon name="ShieldCheck" size={11} />
+        <h1 className="text-xl font-bold text-white mt-3">Владимир Юрьев</h1>
+        <p className="text-white/40 text-xs mt-0.5">@vladimir_altair</p>
+        <div className="lock-badge mt-2 flex items-center gap-1.5">
+          <Icon name="ShieldCheck" size={10} />
           Сквозное шифрование активно
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 px-6 mb-6">
-        {[{ label: "Сообщений", value: "12.4K" }, { label: "Чатов", value: "47" }, { label: "Файлов", value: "238" }].map((s) => (
-          <div key={s.label} className="glass rounded-2xl p-4 text-center">
-            <div className="text-2xl font-bold grad-text">{s.value}</div>
-            <div className="text-xs text-white/40 mt-1">{s.label}</div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 px-5 mb-3 shrink-0">
+        {[{ label: "Сообщений", value: "12.4K" }, { label: "Чатов", value: "47" }, { label: "Переводов", value: "38" }].map((s) => (
+          <div key={s.label} className="glass rounded-2xl p-3 text-center">
+            <div className="text-xl font-bold grad-text">{s.value}</div>
+            <div className="text-[10px] text-white/40 mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="px-6 space-y-2 pb-8">
-        {[
-          { icon: "Bell", label: "Уведомления", val: "Вкл" },
-          { icon: "Languages", label: "Язык перевода", val: "RU ↔ EN" },
-          { icon: "Palette", label: "Тема", val: "ALTAIR Dark" },
-          { icon: "Shield", label: "Приватность", val: "Максимум" },
-          { icon: "Download", label: "Скачать ALTAIR", val: "iOS / Android" },
-          { icon: "Store", label: "Магазин обновлений", val: "Pro — активен" },
-          { icon: "Music", label: "ALTAIR Music", val: "Подключено" },
-          { icon: "LogOut", label: "Выйти", val: "" },
-        ].map((item) => (
-          <div key={item.label} className="glass rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:neon-border transition-all">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,77,255,0.15)" }}>
-              <Icon name={item.icon} size={16} className="text-violet-400" />
-            </div>
-            <span className="text-sm text-white/80 flex-1">{item.label}</span>
-            <span className="text-xs text-white/30">{item.val}</span>
-            <Icon name="ChevronRight" size={14} className="text-white/20" />
-          </div>
-        ))}
+      {/* Tabs */}
+      <div className="px-5 mb-1 shrink-0">
+        <div className="flex gap-1 glass rounded-2xl p-1">
+          {([["settings", "Settings", "Настройки"], ["transfer", "Zap", "Перевести"]] as const).map(([id, icon, label]) => (
+            <button
+              key={id}
+              onClick={() => setProfileTab(id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${profileTab === id ? "text-white" : "text-white/35 hover:text-white/60"}`}
+              style={profileTab === id
+                ? id === "transfer"
+                  ? { background: "linear-gradient(135deg,rgba(0,230,118,0.4),rgba(0,200,83,0.2))", boxShadow: "0 2px 12px rgba(0,230,118,0.25)" }
+                  : { background: "linear-gradient(135deg,rgba(124,77,255,0.5),rgba(0,229,255,0.2))", boxShadow: "0 2px 12px rgba(124,77,255,0.3)" }
+                : {}}
+            >
+              <Icon name={icon} size={13} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Content */}
+      {profileTab === "settings" ? (
+        <div className="flex-1 overflow-y-auto px-5 space-y-2 pb-6 pt-2">
+          {[
+            { icon: "Bell", label: "Уведомления", val: "Вкл" },
+            { icon: "Languages", label: "Язык перевода", val: "RU ↔ EN" },
+            { icon: "Palette", label: "Тема", val: "ALTAIR Dark" },
+            { icon: "Shield", label: "Приватность", val: "Максимум" },
+            { icon: "Download", label: "Скачать ALTAIR", val: "iOS / Android" },
+            { icon: "Store", label: "Магазин обновлений", val: "Pro — активен" },
+            { icon: "Music", label: "ALTAIR Music", val: "Подключено" },
+            { icon: "LogOut", label: "Выйти", val: "" },
+          ].map((item) => (
+            <div key={item.label} className="glass rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:neon-border transition-all">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,77,255,0.15)" }}>
+                <Icon name={item.icon} size={16} className="text-violet-400" />
+              </div>
+              <span className="text-sm text-white/80 flex-1">{item.label}</span>
+              <span className="text-xs text-white/30">{item.val}</span>
+              <Icon name="ChevronRight" size={14} className="text-white/20" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <ProfileTransfer />
+      )}
     </div>
   );
 }
