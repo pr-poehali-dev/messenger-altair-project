@@ -4,6 +4,12 @@ import Icon from "@/components/ui/icon";
 // ─── Types ───────────────────────────────────────────────────
 type Tab = "chats" | "channels" | "calls" | "notes" | "profile";
 
+interface Reaction {
+  emoji: string;
+  count: number;
+  mine: boolean;
+}
+
 interface Message {
   id: number;
   text: string;
@@ -11,6 +17,7 @@ interface Message {
   out: boolean;
   translated?: string;
   showTranslation?: boolean;
+  reactions?: Reaction[];
 }
 
 interface Chat {
@@ -52,11 +59,11 @@ const CHATS: Chat[] = [
 ];
 
 const MESSAGES: Message[] = [
-  { id: 1, text: "Привет! Как дела с проектом ALTAIR?", time: "14:20", out: false },
-  { id: 2, text: "Всё отлично! Почти закончил дизайн. Выглядит очень круто 🔥", time: "14:21", out: true },
+  { id: 1, text: "Привет! Как дела с проектом ALTAIR?", time: "14:20", out: false, reactions: [{ emoji: "👋", count: 1, mine: true }] },
+  { id: 2, text: "Всё отлично! Почти закончил дизайн. Выглядит очень круто 🔥", time: "14:21", out: true, reactions: [{ emoji: "🔥", count: 3, mine: false }, { emoji: "❤️", count: 1, mine: true }] },
   { id: 3, text: "Hello! Can you share the prototype link?", time: "14:25", out: false, translated: "Привет! Можешь поделиться ссылкой на прототип?", showTranslation: true },
   { id: 4, text: "Конечно! Вот ссылка: altair.app/proto/v2", time: "14:27", out: true },
-  { id: 5, text: "Wow, it looks amazing! The gradient effects are stunning 😍", time: "14:30", out: false, translated: "Вау, выглядит потрясающе! Эффекты градиента просто восхитительны 😍", showTranslation: true },
+  { id: 5, text: "Wow, it looks amazing! The gradient effects are stunning 😍", time: "14:30", out: false, translated: "Вау, выглядит потрясающе! Эффекты градиента просто восхитительны 😍", showTranslation: true, reactions: [{ emoji: "😍", count: 2, mine: false }] },
   { id: 6, text: "Отлично, увидимся завтра!", time: "14:32", out: false },
 ];
 
@@ -230,6 +237,8 @@ function ChatsPanel({ activeChat, onSelect }: { activeChat: number; onSelect: (i
   );
 }
 
+const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👍", "👎", "😮", "😢", "🎉", "🙏"];
+
 // ─── Chat Window ─────────────────────────────────────────────
 function ChatWindow({ chatId }: { chatId: number }) {
   const chat = CHATS.find((c) => c.id === chatId)!;
@@ -237,11 +246,19 @@ function ChatWindow({ chatId }: { chatId: number }) {
   const [input, setInput] = useState("");
   const [translateAll, setTranslateAll] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
+  const [hoveredMsg, setHoveredMsg] = useState<number | null>(null);
+  const [pickerFor, setPickerFor] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    const close = () => setPickerFor(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
   const send = () => {
     if (!input.trim()) return;
@@ -250,6 +267,27 @@ function ChatWindow({ chatId }: { chatId: number }) {
       { id: Date.now(), text: input, time: new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }), out: true },
     ]);
     setInput("");
+  };
+
+  const addReaction = (msgId: number, emoji: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id !== msgId) return msg;
+        const reactions = msg.reactions ?? [];
+        const existing = reactions.find((r) => r.emoji === emoji);
+        if (existing) {
+          return {
+            ...msg,
+            reactions: existing.mine
+              ? reactions.map((r) => r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r).filter((r) => r.count > 0)
+              : reactions.map((r) => r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r),
+          };
+        }
+        return { ...msg, reactions: [...reactions, { emoji, count: 1, mine: true }] };
+      })
+    );
+    setPickerFor(null);
   };
 
   return (
@@ -297,20 +335,79 @@ function ChatWindow({ chatId }: { chatId: number }) {
             key={msg.id}
             className={`flex ${msg.out ? "justify-end" : "justify-start"} animate-fade-in`}
             style={{ animationDelay: `${i * 0.03}s` }}
+            onMouseEnter={() => setHoveredMsg(msg.id)}
+            onMouseLeave={() => setHoveredMsg(null)}
           >
-            <div style={{ maxWidth: "68%" }}>
+            <div style={{ maxWidth: "68%" }} className="relative">
+              {/* Hover action: добавить реакцию */}
+              <div
+                className={`absolute top-1 ${msg.out ? "-left-10" : "-right-10"} transition-all duration-150 ${hoveredMsg === msg.id ? "opacity-100 scale-100" : "opacity-0 scale-90 pointer-events-none"}`}
+              >
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPickerFor(pickerFor === msg.id ? null : msg.id); }}
+                  className="w-8 h-8 glass rounded-xl flex items-center justify-center text-base hover:neon-border transition-all"
+                  title="Добавить реакцию"
+                >
+                  😊
+                </button>
+              </div>
+
+              {/* Пикер эмодзи */}
+              {pickerFor === msg.id && (
+                <div
+                  className={`absolute z-50 bottom-full mb-2 ${msg.out ? "right-0" : "left-0"} glass-strong rounded-2xl p-2 flex gap-1 flex-wrap animate-scale-in`}
+                  style={{ width: 224, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", border: "1px solid rgba(124,77,255,0.3)" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={(e) => addReaction(msg.id, emoji, e)}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center text-xl hover:bg-white/10 transition-all hover:scale-125 active:scale-95"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className={`px-4 py-2.5 text-sm leading-relaxed ${msg.out ? "msg-bubble-out text-white" : "msg-bubble-in text-white/85"}`}>
                 {msg.text}
               </div>
               {translateAll && msg.translated && (
                 <div
-                  className={`mt-1 px-4 py-2 rounded-xl text-xs text-white/50 italic border border-dashed border-white/10 flex items-start gap-2`}
+                  className="mt-1 px-4 py-2 rounded-xl text-xs text-white/50 italic border border-dashed border-white/10 flex items-start gap-2"
                   style={{ background: "rgba(124,77,255,0.06)" }}
                 >
                   <Icon name="Languages" size={11} className="shrink-0 mt-0.5 text-violet-400" />
                   {msg.translated}
                 </div>
               )}
+
+              {/* Реакции */}
+              {msg.reactions && msg.reactions.length > 0 && (
+                <div className={`flex flex-wrap gap-1 mt-1.5 ${msg.out ? "justify-end" : "justify-start"}`}>
+                  {msg.reactions.map((r) => (
+                    <button
+                      key={r.emoji}
+                      onClick={(e) => addReaction(msg.id, r.emoji, e)}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:scale-110 active:scale-95 ${
+                        r.mine
+                          ? "border border-violet-500/60 text-violet-300"
+                          : "border border-white/10 text-white/50"
+                      }`}
+                      style={{
+                        background: r.mine ? "rgba(124,77,255,0.18)" : "rgba(255,255,255,0.05)",
+                        backdropFilter: "blur(8px)",
+                      }}
+                    >
+                      <span>{r.emoji}</span>
+                      {r.count > 1 && <span>{r.count}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className={`text-[10px] text-white/25 mt-1 ${msg.out ? "text-right" : "text-left"}`}>
                 {msg.time} {msg.out && <Icon name="CheckCheck" size={11} className="inline text-cyan-400 ml-1" />}
               </div>
