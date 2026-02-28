@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "name": "Send OTP",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "send", "phone": "+79991234567"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Verify wrong code",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "verify", "phone": "+79991234567", "code": "wrong1"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "Неверный или просроченный код"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

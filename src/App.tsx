@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import Icon from "@/components/ui/icon";
+import AuthScreen, { type AuthUser } from "@/AuthScreen";
+
+const PROFILE_URL = "https://functions.poehali.dev/2440669e-d51d-4e49-ae72-a86f7b5cbfb3";
 
 // ─── Types ───────────────────────────────────────────────────
 type Tab = "chats" | "channels" | "calls" | "notes" | "profile" | "download";
@@ -1120,62 +1123,261 @@ function ProfileTransfer() {
   );
 }
 
+// ─── Story Viewer ─────────────────────────────────────────────
+interface StoryItem { id: number; image_url: string; caption?: string; created_at: string; }
+
+function StoryViewer({ stories, onClose }: { stories: StoryItem[]; onClose: () => void }) {
+  const [idx, setIdx] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    setProgress(0);
+    const t = setInterval(() => setProgress((p) => {
+      if (p >= 100) {
+        clearInterval(t);
+        if (idx < stories.length - 1) setIdx((i) => i + 1);
+        else onClose();
+        return 0;
+      }
+      return p + 2;
+    }), 100);
+    return () => clearInterval(t);
+  }, [idx, stories.length, onClose]);
+
+  const story = stories[idx];
+  return (
+    <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={onClose}>
+      <div className="relative w-full max-w-sm h-full max-h-[700px]" onClick={(e) => e.stopPropagation()}>
+        <img src={story.image_url} alt="" className="w-full h-full object-cover rounded-2xl" />
+        <div className="absolute top-3 left-3 right-3 flex gap-1">
+          {stories.map((_, i) => (
+            <div key={i} className="flex-1 h-0.5 rounded-full bg-white/20 overflow-hidden">
+              <div className="h-full bg-white transition-none rounded-full" style={{ width: i < idx ? "100%" : i === idx ? `${progress}%` : "0%" }} />
+            </div>
+          ))}
+        </div>
+        <button onClick={onClose} className="absolute top-6 right-4 w-8 h-8 glass rounded-full flex items-center justify-center">
+          <Icon name="X" size={16} className="text-white" />
+        </button>
+        {story.caption && (
+          <div className="absolute bottom-6 left-4 right-4 glass rounded-xl px-4 py-2 text-white text-sm">{story.caption}</div>
+        )}
+        <button className="absolute left-0 top-0 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); setIdx((i) => Math.max(0, i - 1)); }} />
+        <button className="absolute right-0 top-0 bottom-0 w-1/3" onClick={(e) => { e.stopPropagation(); setIdx((i) => Math.min(stories.length - 1, i + 1)); }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Profile View ─────────────────────────────────────────────
 type ProfileTab = "settings" | "transfer";
 
-function ProfileView({ onDownload }: { onDownload: () => void }) {
+function ProfileView({ user, onDownload, onLogout }: { user: AuthUser; onDownload: () => void; onLogout: () => void }) {
   const [profileTab, setProfileTab] = useState<ProfileTab>("settings");
-  const [name, setName] = useState("Ваше имя");
+  const [name, setName] = useState(user.name || "Пользователь");
   const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState("Ваше имя");
-  const [status, setStatus] = useState("Привет! Я использую ALTAIR 👋");
+  const [nameInput, setNameInput] = useState(user.name || "Пользователь");
+  const [status, setStatus] = useState(user.status || "Привет! Я использую ALTAIR 👋");
   const [editingStatus, setEditingStatus] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
+  const [saving, setSaving] = useState(false);
   const [notif, setNotif] = useState(true);
   const [theme, setTheme] = useState("ALTAIR Dark");
+  const [stories, setStories] = useState<StoryItem[]>([]);
+  const [viewStories, setViewStories] = useState(false);
+  const [addingStory, setAddingStory] = useState(false);
+  const [storyCaption, setStoryCaption] = useState("");
+  const [storyPreview, setStoryPreview] = useState("");
+  const [storyB64, setStoryB64] = useState("");
 
   const initials = name.split(" ").map((w) => w[0]?.toUpperCase() || "").join("").slice(0, 2) || "ВЫ";
 
+  useEffect(() => {
+    // Загрузить профиль и истории
+    fetch(PROFILE_URL, { headers: { "X-Session-Token": user.token } })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setName(d.user.name || name);
+          setStatus(d.user.status || status);
+          setAvatarUrl(d.user.avatar_url || "");
+        }
+        if (d.stories) setStories(d.stories);
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveProfile = async (updates: { name?: string; status?: string; avatar_b64?: string }) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${PROFILE_URL}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Session-Token": user.token },
+        body: JSON.stringify({ action: "update", ...updates }),
+      });
+      const d = await res.json();
+      if (d.user) {
+        setName(d.user.name);
+        setStatus(d.user.status);
+        setAvatarUrl(d.user.avatar_url || "");
+        const saved = JSON.parse(localStorage.getItem("altair_user") || "{}");
+        localStorage.setItem("altair_user", JSON.stringify({ ...saved, ...d.user }));
+      }
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = (reader.result as string).split(",")[1];
+      const preview = reader.result as string;
+      setAvatarUrl(preview);
+      saveProfile({ avatar_b64: b64 });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleStoryFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = (reader.result as string).split(",")[1];
+      setStoryB64(b64);
+      setStoryPreview(reader.result as string);
+      setAddingStory(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const publishStory = async () => {
+    if (!storyB64) return;
+    try {
+      const res = await fetch(`${PROFILE_URL}/story`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Session-Token": user.token },
+        body: JSON.stringify({ action: "story", image_b64: storyB64, caption: storyCaption }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setStories((prev) => [{ id: d.story_id, image_url: d.url, caption: storyCaption, created_at: new Date().toISOString() }, ...prev]);
+      }
+    } catch { /* ignore */ }
+    setAddingStory(false);
+    setStoryPreview("");
+    setStoryB64("");
+    setStoryCaption("");
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-mesh overflow-hidden">
-      <div className="relative px-8 pt-8 pb-5 flex flex-col items-center shrink-0">
-        <div className="absolute inset-0 opacity-20" style={{ background: "linear-gradient(180deg,rgba(124,77,255,0.5) 0%, transparent 100%)" }} />
-        <div className="relative">
-          <label className="cursor-pointer group">
-            <Avatar label={initials} size={80} />
-            <div className="absolute inset-0 rounded-[24px] bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Icon name="Camera" size={18} className="text-white" />
+      {viewStories && stories.length > 0 && <StoryViewer stories={stories} onClose={() => setViewStories(false)} />}
+
+      {/* Story add modal */}
+      {addingStory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)" }}>
+          <div className="glass-strong rounded-3xl w-full max-w-sm mx-4 p-6 space-y-4 animate-scale-in" style={{ border: "1px solid rgba(124,77,255,0.3)" }}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-white font-bold text-lg">Добавить историю</h2>
+              <button onClick={() => setAddingStory(false)} className="w-8 h-8 glass rounded-xl flex items-center justify-center"><Icon name="X" size={16} className="text-white/50" /></button>
             </div>
-            <input type="file" accept="image/*" className="hidden" />
-          </label>
+            {storyPreview && <img src={storyPreview} alt="" className="w-full h-48 object-cover rounded-2xl" />}
+            <input value={storyCaption} onChange={(e) => setStoryCaption(e.target.value)} placeholder="Подпись к истории (необязательно)"
+              className="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 outline-none" />
+            <button onClick={publishStory} className="w-full btn-grad py-3 rounded-2xl text-white font-semibold flex items-center justify-center gap-2">
+              <Icon name="Send" size={16} />Опубликовать
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hero */}
+      <div className="relative px-8 pt-6 pb-4 flex flex-col items-center shrink-0">
+        <div className="absolute inset-0 opacity-20" style={{ background: "linear-gradient(180deg,rgba(124,77,255,0.5) 0%, transparent 100%)" }} />
+
+        {/* Stories ring + avatar */}
+        <div className="relative mb-1">
+          {/* Story ring */}
+          <button
+            onClick={() => stories.length > 0 ? setViewStories(true) : null}
+            className={`rounded-[28px] p-0.5 ${stories.length > 0 ? "cursor-pointer" : "cursor-default"}`}
+            style={stories.length > 0 ? { background: "linear-gradient(135deg,#7c4dff,#ff4db8,#00e5ff)", boxShadow: "0 0 20px rgba(124,77,255,0.5)" } : {}}>
+            <label className="cursor-pointer group block">
+              <div className="w-20 h-20 rounded-[24px] overflow-hidden" style={{ background: avatarUrl ? "transparent" : "linear-gradient(135deg,#7c4dff,#00e5ff)" }}>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">{initials}</div>
+                )}
+                <div className="absolute inset-0.5 rounded-[23px] bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Icon name="Camera" size={18} className="text-white" />
+                </div>
+              </div>
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+            </label>
+          </button>
+          {saving && <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-violet-500 rounded-full flex items-center justify-center"><Icon name="Loader2" size={10} className="text-white animate-spin" /></div>}
           <div className="online-dot absolute -bottom-0.5 -right-0.5" style={{ width: 14, height: 14 }} />
         </div>
+
+        {/* Name */}
         {editingName ? (
           <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} autoFocus
-            onBlur={() => { setName(nameInput || "Ваше имя"); setEditingName(false); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { setName(nameInput || "Ваше имя"); setEditingName(false); } }}
+            onBlur={() => { const n = nameInput.trim() || name; setName(n); setEditingName(false); saveProfile({ name: n }); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { const n = nameInput.trim() || name; setName(n); setEditingName(false); saveProfile({ name: n }); } }}
             className="mt-3 bg-transparent text-xl font-bold text-white outline-none text-center border-b border-violet-500 pb-0.5" />
         ) : (
-          <h1 className="text-xl font-bold text-white mt-3 cursor-pointer hover:text-white/80 transition-colors" onClick={() => setEditingName(true)}>{name}</h1>
+          <h1 className="text-xl font-bold text-white mt-3 cursor-pointer hover:text-white/80 flex items-center gap-1.5" onClick={() => { setNameInput(name); setEditingName(true); }}>
+            {name}<Icon name="Pencil" size={12} className="text-white/30" />
+          </h1>
         )}
+
+        {/* Phone */}
+        <p className="text-white/30 text-xs mt-0.5">{user.phone}</p>
+
+        {/* Status */}
         {editingStatus ? (
-          <input value={status} onChange={(e) => setStatus(e.target.value)} autoFocus onBlur={() => setEditingStatus(false)}
-            onKeyDown={(e) => { if (e.key === "Enter") setEditingStatus(false); }}
-            className="text-xs mt-1 bg-transparent text-white/40 outline-none text-center border-b border-violet-500/50 pb-0.5 w-full max-w-xs" />
+          <input value={status} onChange={(e) => setStatus(e.target.value)} autoFocus
+            onBlur={() => { setEditingStatus(false); saveProfile({ status }); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { setEditingStatus(false); saveProfile({ status }); } }}
+            className="text-xs mt-1 bg-transparent text-white/50 outline-none text-center border-b border-violet-500/50 pb-0.5 w-full max-w-xs" />
         ) : (
-          <p className="text-white/40 text-xs mt-0.5 cursor-pointer hover:text-white/60 transition-colors" onClick={() => setEditingStatus(true)}>{status}</p>
+          <p className="text-white/40 text-xs mt-1 cursor-pointer hover:text-white/60 flex items-center gap-1" onClick={() => setEditingStatus(true)}>
+            {status}<Icon name="Pencil" size={10} className="text-white/20" />
+          </p>
         )}
-        <div className="lock-badge mt-2 flex items-center gap-1.5"><Icon name="ShieldCheck" size={10} />Сквозное шифрование активно</div>
+
+        <div className="lock-badge mt-2 flex items-center gap-1.5"><Icon name="ShieldCheck" size={10} />Сквозное шифрование</div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 px-5 mb-3 shrink-0">
-        {[{ label: "Чатов", value: "0" }, { label: "Переводов", value: "0" }].map((s) => (
-          <div key={s.label} className="glass rounded-2xl p-3 text-center">
-            <div className="text-xl font-bold grad-text">{s.value}</div>
-            <div className="text-[10px] text-white/40 mt-0.5">{s.label}</div>
-          </div>
-        ))}
+      {/* Stories strip */}
+      <div className="px-5 mb-3 shrink-0">
+        <div className="flex gap-3 items-center">
+          {/* Add story button */}
+          <label className="flex flex-col items-center gap-1 cursor-pointer shrink-0">
+            <div className="w-14 h-14 rounded-2xl glass flex items-center justify-center hover:neon-border transition-all" style={{ border: "2px dashed rgba(124,77,255,0.4)" }}>
+              <Icon name="Plus" size={20} className="text-violet-400" />
+            </div>
+            <span className="text-[10px] text-white/40">История</span>
+            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleStoryFile} />
+          </label>
+
+          {/* Existing stories */}
+          {stories.map((s, i) => (
+            <button key={s.id} onClick={() => { setViewStories(true); }} className="flex flex-col items-center gap-1 shrink-0">
+              <div className="w-14 h-14 rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg,#7c4dff,#ff4db8,#00e5ff)", padding: 2 }}>
+                <img src={s.image_url} alt="" className="w-full h-full object-cover rounded-xl" />
+              </div>
+              <span className="text-[10px] text-white/40">{i === 0 ? "Моя" : `#${i + 1}`}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Tabs */}
       <div className="px-5 mb-1 shrink-0">
         <div className="flex gap-1 glass rounded-2xl p-1">
           {([["settings", "Settings", "Настройки"], ["transfer", "Zap", "Перевести"]] as const).map(([id, icon, label]) => (
@@ -1190,18 +1392,16 @@ function ProfileView({ onDownload }: { onDownload: () => void }) {
 
       {profileTab === "settings" ? (
         <div className="flex-1 overflow-y-auto px-5 space-y-2 pb-6 pt-2">
-          {/* Уведомления */}
           <div className="glass rounded-2xl px-4 py-3.5 flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,77,255,0.15)" }}>
               <Icon name="Bell" size={16} className="text-violet-400" />
             </div>
             <span className="text-sm text-white/80 flex-1">Уведомления</span>
-            <button onClick={() => setNotif(!notif)} className={`w-11 h-6 rounded-full transition-all relative ${notif ? "" : "bg-white/10"}`}
-              style={notif ? { background: "linear-gradient(90deg,#7c4dff,#00e5ff)" } : {}}>
+            <button onClick={() => setNotif(!notif)} className="w-11 h-6 rounded-full transition-all relative"
+              style={notif ? { background: "linear-gradient(90deg,#7c4dff,#00e5ff)" } : { background: "rgba(255,255,255,0.1)" }}>
               <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${notif ? "right-1" : "left-1"}`} />
             </button>
           </div>
-          {/* Скачать приложение */}
           <button onClick={onDownload} className="w-full glass rounded-2xl px-4 py-3.5 flex items-center gap-3 hover:neon-border transition-all">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,229,255,0.12)" }}>
               <Icon name="Download" size={16} className="text-cyan-400" />
@@ -1210,7 +1410,6 @@ function ProfileView({ onDownload }: { onDownload: () => void }) {
             <span className="text-xs text-white/30">iOS / Android</span>
             <Icon name="ChevronRight" size={14} className="text-white/20" />
           </button>
-          {/* Тема */}
           <div className="glass rounded-2xl px-4 py-3.5 flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(124,77,255,0.15)" }}>
               <Icon name="Palette" size={16} className="text-violet-400" />
@@ -1240,7 +1439,7 @@ function ProfileView({ onDownload }: { onDownload: () => void }) {
               <Icon name="ChevronRight" size={14} className="text-white/20" />
             </div>
           ))}
-          <button className="w-full glass rounded-2xl px-4 py-3.5 flex items-center gap-3 hover:bg-red-500/5 transition-colors">
+          <button onClick={onLogout} className="w-full glass rounded-2xl px-4 py-3.5 flex items-center gap-3 hover:bg-red-500/5 transition-colors">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,0.12)" }}>
               <Icon name="LogOut" size={16} className="text-red-400" />
             </div>
@@ -1279,7 +1478,7 @@ function EmptyChat({ onNew }: { onNew: () => void }) {
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────
-function Sidebar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
+function Sidebar({ active, onChange, user }: { active: Tab; onChange: (t: Tab) => void; user: AuthUser | null }) {
   const items: { id: Tab; icon: string; label: string }[] = [
     { id: "chats", icon: "MessageCircle", label: "Чаты" },
     { id: "channels", icon: "Radio", label: "Каналы" },
@@ -1306,7 +1505,11 @@ function Sidebar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void
       </div>
       <button onClick={() => onChange("profile")} className={`sidebar-item w-full flex flex-col items-center gap-1 ${active === "profile" ? "active" : ""}`}>
         <div className="relative">
-          <Avatar label="ВЫ" size={32} />
+          {user?.avatar_url ? (
+            <div className="w-8 h-8 rounded-xl overflow-hidden"><img src={user.avatar_url} alt="" className="w-full h-full object-cover" /></div>
+          ) : (
+            <Avatar label={user ? (user.name.split(" ").map((w) => w[0]?.toUpperCase()).join("").slice(0, 2) || "ВЫ") : "ВЫ"} size={32} />
+          )}
           <div className="online-dot absolute -bottom-0.5 -right-0.5" />
         </div>
       </button>
@@ -1320,6 +1523,25 @@ export default function App() {
   const [activeChat, setActiveChat] = useState<number | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [newChatOpen, setNewChatOpen] = useState(false);
+
+  // Auth state
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
+    try {
+      const token = localStorage.getItem("altair_token");
+      const user = localStorage.getItem("altair_user");
+      if (token && user) return { ...JSON.parse(user), token };
+    } catch { /* ignore */ }
+    return null;
+  });
+
+  const handleAuth = (user: AuthUser) => setAuthUser(user);
+  const handleLogout = () => {
+    localStorage.removeItem("altair_token");
+    localStorage.removeItem("altair_user");
+    setAuthUser(null);
+  };
+
+  if (!authUser) return <AuthScreen onAuth={handleAuth} />;
 
   const createChat = (name: string, avatar: string) => {
     const id = Date.now();
@@ -1350,13 +1572,13 @@ export default function App() {
     if (tab === "calls") return <CallsView />;
     if (tab === "notes") return <NotesView />;
     if (tab === "download") return <DownloadView />;
-    if (tab === "profile") return <div className="flex-1 flex h-full"><ProfileView onDownload={() => setTab("download")} /></div>;
+    if (tab === "profile") return <div className="flex-1 flex h-full"><ProfileView user={authUser} onDownload={() => setTab("download")} onLogout={handleLogout} /></div>;
     return null;
   };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={{ background: "hsl(var(--background))" }}>
-      <Sidebar active={tab} onChange={(t) => { setTab(t); if (t !== "chats") setActiveChat(null); }} />
+      <Sidebar active={tab} onChange={(t) => { setTab(t); if (t !== "chats") setActiveChat(null); }} user={authUser} />
       <div className="flex flex-1 overflow-hidden animate-fade-in" key={tab}>
         {renderMain()}
       </div>
